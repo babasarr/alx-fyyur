@@ -4,6 +4,7 @@
 
 from curses import echo
 import json
+from typing import Any
 import dateutil.parser
 import babel
 from flask import Flask, render_template, request, Response, flash, redirect, url_for,jsonify
@@ -14,6 +15,10 @@ from logging import Formatter, FileHandler
 from flask_migrate import Migrate
 from flask_wtf import Form
 from forms import *
+from sqlalchemy import func
+from sqlalchemy.dialects.postgresql import ARRAY
+from models import Show,Venue,Artist
+
 
 #----------------------------------------------------------------------------#
 # App Config.
@@ -30,65 +35,14 @@ migrate = Migrate(app, db)
 
 # TODO: connect to a local postgresql database
 
-#----------------------------------------------------------------------------#
-# Models.
-#----------------------------------------------------------------------------#
-
-class Venue(db.Model):
-    __tablename__ = 'venues'
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
-    city = db.Column(db.String(120))
-    state = db.Column(db.String(120))
-    address = db.Column(db.String(120))
-    phone = db.Column(db.String(120))
-    image_link = db.Column(db.String(500))
-    facebook_link = db.Column(db.String(120))
-    genres = db.Column(db.String(120), nullable=True)
-    website_link = db.Column(db.String(120), nullable=True)
-    seeking_talent = db.Column(db.Boolean, default=False)
-    seeking_description = db.Column(db.String(1000), nullable=True)
-    shows = db.relationship('Show', backref='venue', lazy=True)
-
-
-    # TODO: implement any missing fields, as a database migration using Flask-Migrate
-
-class Artist(db.Model):
-    __tablename__ = 'artists'
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
-    city = db.Column(db.String(120))
-    state = db.Column(db.String(120))
-    phone = db.Column(db.String(120))
-    genres = db.Column(db.String(120))
-    image_link = db.Column(db.String(500))
-    facebook_link = db.Column(db.String(120))
-    website_link = db.Column(db.String(120), nullable=True)
-    seeking_venue = db.Column(db.Boolean, default=False)
-    seeking_description = db.Column(db.String(1000), nullable=True)
-    shows = db.relationship('Show', backref='artist', lazy=True)
-
-    # TODO: implement any missing fields, as a database migration using Flask-Migrate
-
-# TODO Implement Show and Artist models, and complete all model relationships and properties, as a database migration.
-
-class Show(db.Model):
-    __tablename__ = 'shows'
-
-    id = db.Column(db.Integer, primary_key=True)
-    venue_id = db.Column(db.Integer , db.ForeignKey("venues.id"), nullable=False)
-    artist_id = db.Column(db.Integer , db.ForeignKey("artists.id"), nullable=False)
-    start_time = db.Column(db.DateTime)
-
 
 #----------------------------------------------------------------------------#
 # Filters.
 #----------------------------------------------------------------------------#
 
 def format_datetime(value, format='medium'):
-  date = dateutil.parser.parse(value)
+  #date = dateutil.parser.parse(value)
+  date = value
   if format == 'full':
       format="EEEE MMMM, d, y 'at' h:mma"
   elif format == 'medium':
@@ -113,7 +67,13 @@ def index():
 def venues():
   # TODO: replace with real venues data.
   #       num_upcoming_shows should be aggregated based on number of upcoming shows per venue.
-  data = Venue.query.order_by('id').all()
+ 
+
+  #data = db.session.query(Venue.city,Venue.state,Venue.id,Venue).group_by(Venue.city, Venue.state).all()
+  #data = Venue.query.all() 
+  data = db.session.query(Venue).distinct(Venue.city, Venue.state).all()
+
+
   # data=[{
   #   "city": "San Francisco",
   #   "state": "CA",
@@ -143,9 +103,13 @@ def search_venues():
   # seach for Hop should return "The Musical Hop".
   # search for "Music" should return "The Musical Hop" and "Park Square Live Music & Coffee"
 
+
   data = request.form.get('search_term', '')
 
-  response = Venue.query.filter(Venue.name.ilike(data)).all() 
+  response = db.session.query(Venue).filter(Venue.name.ilike(data))
+
+  setattr(response, "count", response.count() )  
+  setattr(response, "data", response.all() )   
 
   # response={
   #   "count": 1,
@@ -242,6 +206,13 @@ def show_venue(venue_id):
   # data = list(filter(lambda d: d['id'] == venue_id, [data1, data2, data3]))[0]
 
   data = Venue.query.get(venue_id)
+  data.genres = "genres", data.genres.split(",")
+  past_shows =  filter(lambda show: show.start_time <= datetime.now(), data.shows) 
+  upcoming_shows = filter(lambda show: show.start_time > datetime.now(), data.shows) 
+
+  setattr(data, "past_shows",past_shows)  
+  setattr(data, "upcoming_shows",upcoming_shows)  
+  
   return render_template('pages/show_venue.html', venue=data)
 
 #  Create Venue
@@ -336,7 +307,10 @@ def search_artists():
   
   data = request.form.get('search_term', '')
 
-  response = Artist.query.filter(Artist.name.ilike(data)).all() 
+  response = db.session.query(Artist).filter(Artist.name.ilike(data))
+
+  setattr(response, "count", response.count() )  
+  setattr(response, "data", response.all() )  
 
   # response={
   #   "count": 1,
@@ -425,6 +399,13 @@ def show_artist(artist_id):
   # }
   # data = list(filter(lambda d: d['id'] == artist_id, [data1, data2, data3]))[0]
   data = Artist.query.get(artist_id)
+  data.genres = "genres", data.genres.split(",")
+  past_shows =  filter(lambda show: show.start_time <= datetime.now(), data.shows) 
+  upcoming_shows = filter(lambda show: show.start_time > datetime.now(), data.shows) 
+
+  setattr(data, "past_shows",past_shows)  
+  setattr(data, "upcoming_shows",upcoming_shows)  
+  
   return render_template('pages/show_artist.html', artist=data)
 
 #  Update
@@ -503,7 +484,7 @@ def edit_venue(venue_id):
   form.facebook_link.data = venue.facebook_link
   form.genres.data = venue.genres
   form.website_link.data = venue.website_link
-  form.seeking_talent.data = venue.seeking_venue
+  form.seeking_talent.data = venue.seeking_talent
   form.seeking_description.data = venue.seeking_description
   # venue={
   #   "id": 1,
@@ -667,9 +648,8 @@ def create_show_submission():
       db.session.add(show)
       db.session.commit()
       flash('Show was successfully listed!')
-  except Exception as e:
-      db.session.rollback()
-      flash(e) 
+  except:
+      flash('An error occurred. Show could not be listed.')
   finally:
       db.session.close()
   
