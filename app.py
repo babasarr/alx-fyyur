@@ -2,6 +2,7 @@
 # Imports
 #----------------------------------------------------------------------------#
 
+from ast import For
 from curses import echo
 import json
 from typing import Any
@@ -15,8 +16,6 @@ from logging import Formatter, FileHandler
 from flask_migrate import Migrate
 from flask_wtf import Form
 from forms import *
-from sqlalchemy import func
-from sqlalchemy.dialects.postgresql import ARRAY
 from models import Show,Venue,Artist
 
 
@@ -68,7 +67,10 @@ def venues():
   # TODO: replace with real venues data.
   #       num_upcoming_shows should be aggregated based on number of upcoming shows per venue.
  
-  data = db.session.query(Venue).distinct(Venue.city, Venue.state).all()
+  data = db.session.query(Venue.city,Venue.state).group_by(Venue.city,Venue.state).all()
+
+  for da in data:
+    da.venues = Venue.query.get(city=da.city).all()
 
   return render_template('pages/venues.html', areas=data)
 
