@@ -67,10 +67,12 @@ def venues():
   # TODO: replace with real venues data.
   #       num_upcoming_shows should be aggregated based on number of upcoming shows per venue.
  
-  data = db.session.query(Venue.city,Venue.state).group_by(Venue.city,Venue.state).all()
+  #data = db.session.query(Venue.city,Venue.state).group_by(Venue.city,Venue.state)
+
+  data = db.session.query(Venue).distinct(Venue.city,Venue.state).all()
 
   for da in data:
-    da.venues = Venue.query.get(city=da.city).all()
+    da.venues = Venue.query.filter_by(city=da.city)    
 
   return render_template('pages/venues.html', areas=data)
 
@@ -84,9 +86,9 @@ def search_venues():
   data = request.form.get('search_term', '')
 
   response = db.session.query(Venue).filter(Venue.name.ilike(data))
-
-  setattr(response, "count", response.count() )  
-  setattr(response, "data", response.all() )   
+  response.data = response.all()
+  response.count = response.count()
+ 
 
   return render_template('pages/search_venues.html', results=response, search_term=request.form.get('search_term', ''))
 
@@ -95,12 +97,15 @@ def show_venue(venue_id):
   # shows the venue page with the given venue_id
   # TODO: replace with real venue data from the venues table, using venue_id
   data = Venue.query.get(venue_id)
-  data.genres = "genres", data.genres.split(",")
-  past_shows =  filter(lambda show: show.start_time <= datetime.now(), data.shows) 
-  upcoming_shows = filter(lambda show: show.start_time > datetime.now(), data.shows) 
+  data.genres = list( data.genres[1:-1].split(","))
+  past_shows =  list( filter(lambda show: show.start_time <= datetime.now(), data.shows) ) 
+  upcoming_shows = list( filter(lambda show: show.start_time > datetime.now(), data.shows) ) 
 
-  setattr(data, "past_shows",past_shows)  
-  setattr(data, "upcoming_shows",upcoming_shows)  
+  data.past_shows = past_shows
+  data.upcoming_shows = upcoming_shows
+  data.past_shows_count =  len(past_shows)
+  data.upcoming_shows_count = len(upcoming_shows)
+ 
   
   return render_template('pages/show_venue.html', venue=data)
 
@@ -151,7 +156,7 @@ def create_venue_submission():
   # see: http://flask.pocoo.org/docs/1.0/patterns/flashing/
   # return render_template('pages/home.html')
 
-@app.route('/venues/<venue_id>', methods=['DELETE'])
+@app.route('/venues/<venue_id>/delete', methods=['DELETE'])
 def delete_venue(venue_id):
   # TODO: Complete this endpoint for taking a venue_id, and using
   # SQLAlchemy ORM to delete a record. Handle cases where the session commit could fail.
@@ -162,12 +167,14 @@ def delete_venue(venue_id):
       venue = Venue.query.get(venue_id)
       db.session.delete(venue)
       db.session.commit()
+      flash('Venue '  + venue.name +  ' was successfully deleted!')
   except:
       db.session.rollback()
-      return None
+      flash('An error occurred. Venue ' + venue.name + ' could not be delete.') 
   finally:
       db.session.close()
-  return jsonify({ 'success': True })
+
+  return render_template('pages/home.html')
   
 
 #  Artists
@@ -189,8 +196,9 @@ def search_artists():
 
   response = db.session.query(Artist).filter(Artist.name.ilike(data))
 
-  setattr(response, "count", response.count() )  
-  setattr(response, "data", response.all() )  
+  response = response.count()
+  response = response.data()
+
 
   return render_template('pages/search_artists.html', results=response, search_term=request.form.get('search_term', ''))
 
@@ -200,12 +208,15 @@ def show_artist(artist_id):
   # TODO: replace with real artist data from the artist table, using artist_id
   
   data = Artist.query.get(artist_id)
-  data.genres = "genres", data.genres.split(",")
-  past_shows =  filter(lambda show: show.start_time <= datetime.now(), data.shows) 
-  upcoming_shows = filter(lambda show: show.start_time > datetime.now(), data.shows) 
+  data.genres = list( data.genres[1:-1].split(","))
+  past_shows =  list( filter(lambda show: show.start_time <= datetime.now(), data.shows) )
+  upcoming_shows = list( filter(lambda show: show.start_time > datetime.now(), data.shows) )
 
-  setattr(data, "past_shows",past_shows)  
-  setattr(data, "upcoming_shows",upcoming_shows)  
+  data.past_shows = past_shows
+  data.upcoming_shows = upcoming_shows
+  data.past_shows_count = len(past_shows)
+  data.upcoming_shows_count = len(upcoming_shows)
+ 
   
   return render_template('pages/show_artist.html', artist=data)
 
