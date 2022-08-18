@@ -196,8 +196,8 @@ def search_artists():
 
   response = db.session.query(Artist).filter(Artist.name.ilike(data))
 
-  response = response.count()
-  response = response.data()
+  response.data = response.all()
+  response.count = response.count()
 
 
   return render_template('pages/search_artists.html', results=response, search_term=request.form.get('search_term', ''))
@@ -314,7 +314,6 @@ def edit_venue_submission(venue_id):
     db.session.commit()
     flash('Venue ' + request.form['name'] + ' was successfully updated!')
   except:
-      error = True
       db.session.rollback()
       flash('An error occurred. Venue ' + request.form['name']+ ' could not be updated.')  
   finally:
