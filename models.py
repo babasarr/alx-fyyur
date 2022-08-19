@@ -11,12 +11,20 @@ from flask_moment import Moment
 
 app = Flask(__name__)
 db = SQLAlchemy(app)
+app.config.from_object('config')
 moment = Moment(app)
 migrate = Migrate(app, db)
+
 
 #----------------------------------------------------------------------------#
 # Models.
 #----------------------------------------------------------------------------#
+
+
+artist_venues = db.Table('artist_venues',
+    db.Column('artist_id', db.Integer, db.ForeignKey('artists.id'), primary_key=True),
+    db.Column('venue_id', db.Integer, db.ForeignKey('venues.id'), primary_key=True)
+)
 
 class Venue(db.Model):
     __tablename__ = 'venues'
@@ -29,7 +37,7 @@ class Venue(db.Model):
     phone = db.Column(db.String(120))
     image_link = db.Column(db.String(500))
     facebook_link = db.Column(db.String(120))
-    genres = db.Column(db.String(120), nullable=True)
+    genres = db.Column(db.ARRAY(db.String), nullable=False)
     website_link = db.Column(db.String(120), nullable=True)
     seeking_talent = db.Column(db.Boolean, default=False)
     seeking_description = db.Column(db.String(1000), nullable=True)
@@ -46,13 +54,14 @@ class Artist(db.Model):
     city = db.Column(db.String(120))
     state = db.Column(db.String(120))
     phone = db.Column(db.String(120))
-    genres = db.Column(db.String(120))
+    genres = db.Column(db.ARRAY(db.String), nullable=False)
     image_link = db.Column(db.String(500))
     facebook_link = db.Column(db.String(120))
     website_link = db.Column(db.String(120), nullable=True)
     seeking_venue = db.Column(db.Boolean, default=False)
     seeking_description = db.Column(db.String(1000), nullable=True)
     shows = db.relationship('Show', backref='artist', lazy=True)
+    venues = db.relationship('Venue', secondary=artist_venues, backref=db.backref('artists', lazy=True))
 
     # TODO: implement any missing fields, as a database migration using Flask-Migrate
 
